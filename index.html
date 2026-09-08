@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard Demo</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    .viz-root{
+      --surface-1:#fcfcfb;--surface-2:#f9f9f7;
+      --text-primary:#0b0b0b;--text-secondary:#52514e;--text-muted:#898781;
+      --grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,0.10);
+      --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;
+      --good:#006300;--good-bg:#e6f4e6;
+      --bad:#c0392b;--bad-bg:#fdecea;
+      --tooltip-bg:#0b0b0b;--tooltip-text:#ffffff;
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      font-size:13px;color:var(--text-primary);
+      background:var(--surface-2);
+      min-height:100vh;padding:20px 24px 32px;
+      color-scheme:light;
+    }
+    @media(prefers-color-scheme:dark){
+      .viz-root:not([data-theme="light"]){
+        --surface-1:#1a1a19;--surface-2:#0d0d0d;
+        --text-primary:#ffffff;--text-secondary:#c3c2b7;--text-muted:#898781;
+        --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,0.10);
+        --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
+        --good:#0ca30c;--good-bg:rgba(12,163,12,0.12);
+        --bad:#e66767;--bad-bg:rgba(230,103,103,0.12);
+        --tooltip-bg:#ffffff;--tooltip-text:#0b0b0b;
+      }
+    }
+    [data-theme="dark"].viz-root{
+      --surface-1:#1a1a19;--surface-2:#0d0d0d;
+      --text-primary:#ffffff;--text-secondary:#c3c2b7;--text-muted:#898781;
+      --grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,0.10);
+      --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;
+      --good:#0ca30c;--good-bg:rgba(12,163,12,0.12);
+      --bad:#e66767;--bad-bg:rgba(230,103,103,0.12);
+      --tooltip-bg:#ffffff;--tooltip-text:#0b0b0b;
+    }
+
+    /* Header */
+    .dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+    .dash-title{font-size:17px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
+    .dash-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+    .theme-btn{background:var(--surface-1);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;transition:background 0.15s}
+    .theme-btn:hover{background:var(--grid)}
+
+    /* Filter bar */
+    .filter-bar{display:flex;gap:6px;margin-bottom:20px;align-items:center}
+    .filter-label{font-size:11px;color:var(--text-muted);margin-right:4px;text-transform:uppercase;letter-spacing:0.05em}
+    .range-btn{background:var(--surface-1);border:1px solid var(--border);border-radius:5px;padding:5px 11px;font-size:12px;color:var(--text-secondary);cursor:pointer;transition:all 0.12s}
+    .range-btn:hover{border-color:var(--s1);color:var(--s1)}
+    .range-btn.active{background:var(--s1);border-color:var(--s1);color:#fff;font-weight:500}
+
+    /* KPI row */
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .kpi-card{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+    .kpi-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px}
+    .kpi-value{font-size:26px;font-weight:600;color:var(--text-primary);line-height:1;margin-bottom:6px;letter-spacing:-0.02em}
+    .kpi-delta{font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px}
+    .kpi-delta.up{color:var(--good);background:var(--good-bg)}
+    .kpi-delta.down{color:var(--bad);background:var(--bad-bg)}
+    .sparkline-wrap{margin-top:10px;height:28px}
+
+    /* Chart cards */
+    .chart-row{display:grid;grid-template-columns:1.7fr 1fr;gap:12px;margin-bottom:12px}
+    .chart-card{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+    .chart-card-full{grid-column:1/-1}
+    .chart-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+    .chart-title{font-size:13px;font-weight:600;color:var(--text-primary)}
+    .chart-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+    /* Legend */
+    .legend{display:flex;gap:14px;flex-wrap:wrap}
+    .legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary)}
+    .legend-line{width:16px;height:2px;border-radius:1px;flex-shrink:0}
+    .legend-rect{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+    /* Tooltip */
+    .chart-tooltip{position:fixed;background:var(--tooltip-bg);color:var(--tooltip-text);border-radius:7px;padding:9px 12px;font-size:12px;pointer-events:none;opacity:0;transition:opacity 0.1s;z-index:1000;max-width:180px;box-shadow:0 4px 16px rgba(0,0,0,0.2)}
+    .tt-header{font-weight:600;margin-bottom:5px;font-size:11px;opacity:0.7}
+    .tt-row{display:flex;align-items:center;gap:7px;margin-top:3px}
+    .tt-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .tt-val{font-weight:600;margin-left:auto;padding-left:12px}
+    .tt-name{opacity:0.8}
+
+    /* SVG charts */
+    .chart-svg-wrap{position:relative;width:100%}
+    svg{display:block;overflow:visible}
+    .crosshair{stroke:var(--axis);stroke-width:1;stroke-dasharray:3,3;pointer-events:none;opacity:0}
+
+    /* Table */
+    .table-wrap{overflow-x:auto;margin-top:4px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{text-align:left;font-weight:500;color:var(--text-muted);padding:5px 8px;border-bottom:1px solid var(--grid);font-size:11px;text-transform:uppercase;letter-spacing:0.04em}
+    td{padding:7px 8px;border-bottom:1px solid var(--grid);color:var(--text-secondary);font-variant-numeric:tabular-nums}
+    tr:last-child td{border-bottom:none}
+    td:first-child{color:var(--text-primary);font-weight:500}
+    .td-bar{width:80px}
+    .td-bar-inner{height:5px;border-radius:3px;background:var(--s1)}
+    .td-good{color:var(--good);font-weight:500}
+    .td-bad{color:var(--bad);font-weight:500}
+
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+  </style>
+</head>
+<body>
+
+<div class="viz-root" id="root">
+  <h2 class="sr-only">Analytics dashboard showing revenue trends, user growth, channel performance, and key KPIs for the past 90 days.</h2>
+
+  <!-- Header -->
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">Analytics Overview</div>
+      <div class="dash-sub">Updated Sep 8, 2026 · All metrics</div>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()">Toggle dark mode</button>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar" role="group" aria-label="Time range">
+    <span class="filter-label">Range</span>
+    <button class="range-btn" onclick="setRange(7,this)">7d</button>
+    <button class="range-btn" onclick="setRange(30,this)">30d</button>
+    <button class="range-btn active" onclick="setRange(90,this)">90d</button>
+    <button class="range-btn" onclick="setRange(365,this)">1y</button>
+  </div>
+
+  <!-- KPI row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Revenue</div>
+      <div class="kpi-value" id="kpi-rev">$2.41M</div>
+      <span class="kpi-delta up" id="kpi-rev-d">▲ 12.4%</span>
+      <div class="sparkline-wrap"><svg id="spark-rev" width="100%" height="28"></svg></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Active Users</div>
+      <div class="kpi-value" id="kpi-usr">84.2K</div>
+      <span class="kpi-delta up" id="kpi-usr-d">▲ 8.1%</span>
+      <div class="sparkline-wrap"><svg id="spark-usr" width="100%" height="28"></svg></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Conversion</div>
+      <div class="kpi-value" id="kpi-cvr">3.87%</div>
+      <span class="kpi-delta down" id="kpi-cvr-d">▼ 0.3pp</span>
+      <div class="sparkline-wrap"><svg id="spark-cvr" width="100%" height="28"></svg></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg Order Value</div>
+      <div class="kpi-value" id="kpi-aov">$147</div>
+      <span class="kpi-delta up" id="kpi-aov-d">▲ 5.2%</span>
+      <div class="sparkline-wrap"><svg id="spark-aov" width="100%" height="28"></svg></div>
+    </div>
+  </div>
+
+  <!-- Main charts row -->
+  <div class="chart-row">
+    <!-- Revenue & Users line chart -->
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-title">Revenue &amp; Active Users</div>
+          <div class="chart-sub">Daily totals, 90-day window</div>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-line" style="background:var(--s1)"></span>Revenue</div>
+          <div class="legend-item"><span class="legend-line" style="background:var(--s2)"></span>Users</div>
+        </div>
+      </div>
+      <div class="chart-svg-wrap" id="line-wrap">
+        <svg id="line-chart" width="100%" height="200"></svg>
+      </div>
+    </div>
+
+    <!-- Channel bar chart -->
+    <div class="chart-card">
+      <div class="chart-head">
+        <div>
+          <div class="chart-title">Revenue by Channel</div>
+          <div class="chart-sub">Share of total, 90 days</div>
+        </div>
+      </div>
+      <div class="chart-svg-wrap" id="bar-wrap">
+        <svg id="bar-chart" width="100%" height="200"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom table -->
+  <div class="chart-card chart-card-full">
+    <div class="chart-head">
+      <div>
+        <div class="chart-title">Channel Breakdown</div>
+        <div class="chart-sub">Performance by acquisition source</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Revenue</th>
+            <th>Users</th>
+            <th>CVR</th>
+            <th>AOV</th>
+            <th>vs prior</th>
+            <th>Share</th>
+          </tr>
+        </thead>
+        <tbody id="channel-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="chart-tooltip" id="tooltip"></div>
+
+<script>
+// ── Data generation ────────────────────────────────────────────────
+function seed(x){let s=x*9301+49297;return(s%233280)/233280}
+function genSeries(n,base,amp,trend,noiseFactor){
+  let v=base,out=[];
+  for(let i=0;i<n;i++){
+    v=v*(1+trend)+(seed(i*17+base)*2-1)*noiseFactor;
+    out.push(Math.max(0,v+Math.sin(i/7)*amp));
+  }
+  return out;
+}
+
+const CHANNELS=[
+  {name:"Organic Search",rev:682000,users:31200,cvr:4.21,aov:162,trend:8.3,color:"var(--s1)"},
+  {name:"Paid Search",rev:534000,users:19800,cvr:3.88,aov:151,trend:5.1,color:"var(--s2)"},
+  {name:"Direct",rev:421000,users:15400,cvr:4.05,aov:158,trend:3.7,color:"var(--s3)"},
+  {name:"Email",rev:389000,users:9800,cvr:5.12,aov:144,trend:11.4,color:"var(--s4)"},
+  {name:"Social",rev:247000,users:7200,cvr:2.34,aov:131,trend:-2.1,color:"var(--text-muted)"},
+  {name:"Referral",rev:137000,users:4100,cvr:3.76,aov:118,trend:1.2,color:"var(--text-muted)"},
+];
+const totalRev=CHANNELS.reduce((a,c)=>a+c.rev,0);
+
+let range=90;
+let revData90=genSeries(90,25000,3000,0.002,1500);
+let usrData90=genSeries(90,880,80,0.001,40);
+
+function getSlice(arr,n){return arr.slice(arr.length-n)}
+
+// ── Sparklines ─────────────────────────────────────────────────────
+function drawSparkline(svgId,data,color){
+  const el=document.getElementById(svgId);
+  if(!el)return;
+  const W=el.getBoundingClientRect().width||120,H=28;
+  const mn=Math.min(...data),mx=Math.max(...data);
+  const px=(v,i)=>((i/(data.length-1))*W).toFixed(1);
+  const py=(v)=>((1-(v-mn)/(mx-mn||1))*(H-4)+2).toFixed(1);
+  const pts=data.map((v,i)=>`${px(v,i)},${py(v)}`).join(" ");
+  el.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  el.innerHTML=`<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="${px(data[data.length-1],data.length-1)}" cy="${py(data[data.length-1])}" r="3" fill="${color}" stroke="var(--surface-1)" stroke-width="1.5"/>`;
+}
+
+function drawAllSparklines(){
+  const s=getSlice(revData90,range>90?90:range);
+  const u=getSlice(usrData90,range>90?90:range);
+  const cv=s.map(v=>3.5+v/100000*0.3);
+  const av=s.map(v=>130+v/50000*10);
+  const sc=getComputedStyle(document.getElementById("root"));
+  drawSparkline("spark-rev",s,sc.getPropertyValue("--s1").trim());
+  drawSparkline("spark-usr",u,sc.getPropertyValue("--s2").trim());
+  drawSparkline("spark-cvr",cv,sc.getPropertyValue("--s3").trim());
+  drawSparkline("spark-aov",av,sc.getPropertyValue("--s4").trim());
+}
+
+// ── Line chart ─────────────────────────────────────────────────────
+const tooltip=document.getElementById("tooltip");
+
+function showTooltip(e,html){
+  tooltip.innerHTML=html;
+  tooltip.style.opacity="1";
+  moveTooltip(e);
+}
+function hideTooltip(){tooltip.style.opacity="0"}
+function moveTooltip(e){
+  let x=e.clientX+14,y=e.clientY-10;
+  const tw=tooltip.offsetWidth,th=tooltip.offsetHeight;
+  if(x+tw>window.innerWidth-8)x=e.clientX-tw-14;
+  if(y+th>window.innerHeight-8)y=e.clientY-th-10;
+  tooltip.style.left=x+"px";tooltip.style.top=y+"px";
+}
+
+function drawLineChart(){
+  const wrap=document.getElementById("line-wrap");
+  const svg=document.getElementById("line-chart");
+  const W=wrap.clientWidth||500;
+  const H=200,PAD={t:8,r:8,b:28,l:48};
+  const IW=W-PAD.l-PAD.r,IH=H-PAD.t-PAD.b;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  svg.setAttribute("height",H);
+
+  const rev=getSlice(revData90,range>90?90:range);
+  const usr=getSlice(usrData90,range>90?90:range);
+  const N=rev.length;
+  const rMn=Math.min(...rev)*0.92,rMx=Math.max(...rev)*1.05;
+  const uMn=Math.min(...usr)*0.92,uMx=Math.max(...usr)*1.05;
+  const xs=i=>(PAD.l+i/(N-1)*IW).toFixed(2);
+  const yr=v=>(PAD.t+IH-(v-rMn)/(rMx-rMn)*IH).toFixed(2);
+  const yu=v=>(PAD.t+IH-(v-uMn)/(uMx-uMn)*IH).toFixed(2);
+
+  let ticks=[],sc=getComputedStyle(document.getElementById("root"));
+  let step=Math.pow(10,Math.floor(Math.log10((rMx-rMn)/4)));
+  let lo=Math.ceil(rMn/step)*step;
+  for(let t=lo;t<=rMx;t+=step)ticks.push(t);
+  if(ticks.length>6)ticks=ticks.filter((_,i)=>i%2===0);
+
+  let g=`<g>`;
+  ticks.forEach(t=>{
+    const y=yr(t);
+    g+=`<line x1="${PAD.l}" y1="${y}" x2="${W-PAD.r}" y2="${y}" stroke="${sc.getPropertyValue("--grid").trim()}" stroke-width="1"/>`;
+    const lbl=t>=1000?`${(t/1000).toFixed(0)}K`:t;
+    g+=`<text x="${PAD.l-6}" y="${parseFloat(y)+4}" text-anchor="end" fill="${sc.getPropertyValue("--text-muted").trim()}" font-size="10" font-family="system-ui">${lbl}</text>`;
+  });
+  g+=`<line x1="${PAD.l}" y1="${PAD.t+IH}" x2="${W-PAD.r}" y2="${PAD.t+IH}" stroke="${sc.getPropertyValue("--axis").trim()}" stroke-width="1"/>`;
+
+  const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const endDate=new Date(2026,8,8);
+  const step2=Math.max(1,Math.round(N/6));
+  for(let i=0;i<N;i+=step2){
+    const d=new Date(endDate);d.setDate(d.getDate()-(N-1-i));
+    const lbl=range<=30?`${d.getDate()}/${d.getMonth()+1}`:months[d.getMonth()];
+    g+=`<text x="${xs(i)}" y="${H-4}" text-anchor="middle" fill="${sc.getPropertyValue("--text-muted").trim()}" font-size="10" font-family="system-ui">${lbl}</text>`;
+  }
+
+  const areaRev=rev.map((v,i)=>`${xs(i)},${yr(v)}`).join(" ");
+  const areaUsr=usr.map((v,i)=>`${xs(i)},${yu(v)}`).join(" ");
+  const c1=sc.getPropertyValue("--s1").trim(),c2=sc.getPropertyValue("--s2").trim();
+  const aRevPoly=`${PAD.l},${PAD.t+IH} `+areaRev+` ${W-PAD.r},${PAD.t+IH}`;
+  const aUsrPoly=`${PAD.l},${PAD.t+IH} `+areaUsr+` ${W-PAD.r},${PAD.t+IH}`;
+  g+=`<polygon points="${aRevPoly}" fill="${c1}" fill-opacity="0.08"/>`;
+  g+=`<polygon points="${aUsrPoly}" fill="${c2}" fill-opacity="0.08"/>`;
+  g+=`<polyline points="${areaRev}" fill="none" stroke="${c1}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  g+=`<polyline points="${areaUsr}" fill="none" stroke="${c2}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+
+  const er=rev[N-1],eu=usr[N-1];
+  g+=`<circle cx="${xs(N-1)}" cy="${yr(er)}" r="4" fill="${c1}" stroke="var(--surface-1)" stroke-width="2"/>`;
+  g+=`<circle cx="${xs(N-1)}" cy="${yu(eu)}" r="4" fill="${c2}" stroke="var(--surface-1)" stroke-width="2"/>`;
+  g+=`<line id="crosshair" class="crosshair" x1="0" y1="${PAD.t}" x2="0" y2="${PAD.t+IH}"/>`;
+  g+=`<rect id="line-hover" x="${PAD.l}" y="${PAD.t}" width="${IW}" height="${IH}" fill="transparent" style="cursor:crosshair"/>`;
+  g+=`</g>`;
+  svg.innerHTML=g;
+
+  const hov=svg.querySelector("#line-hover");
+  const ch=svg.querySelector("#crosshair");
+  if(hov){
+    hov.addEventListener("mousemove",e=>{
+      const rect=svg.getBoundingClientRect();
+      const mx=e.clientX-rect.left;
+      const idx=Math.round((mx-PAD.l)/IW*(N-1));
+      if(idx<0||idx>=N)return;
+      const cx=parseFloat(xs(idx));
+      if(ch){ch.setAttribute("x1",cx);ch.setAttribute("x2",cx);ch.style.opacity="1";}
+      const d=new Date(endDate);d.setDate(d.getDate()-(N-1-idx));
+      const dateStr=`${d.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;
+      const fmtRev=rev[idx]>=1000?`$${(rev[idx]/1000).toFixed(1)}K`:`$${Math.round(rev[idx])}`;
+      const fmtUsr=usr[idx]>=1000?`${(usr[idx]/1000).toFixed(1)}K`:Math.round(usr[idx]);
+      showTooltip(e,`<div class="tt-header">${dateStr}</div>
+        <div class="tt-row"><span class="tt-dot" style="background:${c1}"></span><span class="tt-name">Revenue</span><span class="tt-val">${fmtRev}</span></div>
+        <div class="tt-row"><span class="tt-dot" style="background:${c2}"></span><span class="tt-name">Users</span><span class="tt-val">${fmtUsr}</span></div>`);
+    });
+    hov.addEventListener("mouseleave",()=>{if(ch)ch.style.opacity="0";hideTooltip();});
+    hov.addEventListener("mousemove",moveTooltip,{passive:true});
+  }
+}
+
+// ── Bar chart (horizontal) ─────────────────────────────────────────
+function drawBarChart(){
+  const wrap=document.getElementById("bar-wrap");
+  const svg=document.getElementById("bar-chart");
+  const W=wrap.clientWidth||300;
+  const H=200,PAD={t:4,r:60,b:8,l:82};
+  const IW=W-PAD.l-PAD.r,IH=H-PAD.t-PAD.b;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+  svg.setAttribute("height",H);
+  const sc=getComputedStyle(document.getElementById("root"));
+
+  const maxR=Math.max(...CHANNELS.map(c=>c.rev));
+  const rowH=IH/CHANNELS.length;
+  const barH=Math.min(18,rowH-6);
+
+  let g=`<g>`;
+  CHANNELS.forEach((ch,i)=>{
+    const y=PAD.t+i*rowH+rowH/2;
+    const bw=(ch.rev/maxR)*IW;
+    const bx=PAD.l;
+    const by=y-barH/2;
+    g+=`<text x="${PAD.l-6}" y="${y+4}" text-anchor="end" font-size="11" font-family="system-ui" fill="${sc.getPropertyValue("--text-secondary").trim()}">${ch.name.split(" ")[0]}</text>`;
+    g+=`<rect data-idx="${i}" class="bar-bg" x="${PAD.l}" y="${by-3}" width="${IW}" height="${barH+6}" fill="transparent" rx="3" style="cursor:pointer"/>`;
+    g+=`<rect x="${bx}" y="${by}" width="${bw}" height="${barH}" fill="${ch.color}"/>`;
+    if(bw>8){
+      const r=Math.min(4,barH/2);
+      g+=`<path d="M${bx+bw-r},${by} Q${bx+bw},${by} ${bx+bw},${by+r} L${bx+bw},${by+barH-r} Q${bx+bw},${by+barH} ${bx+bw-r},${by+barH} L${bx+bw-r},${by} Z" fill="${ch.color}"/>`;
+    }
+    const lbl=`$${(ch.rev/1000).toFixed(0)}K`;
+    g+=`<text x="${bx+bw+5}" y="${y+4}" font-size="11" font-family="system-ui" fill="${sc.getPropertyValue("--text-muted").trim()}" font-variant-numeric="tabular-nums">${lbl}</text>`;
+  });
+  g+=`</g>`;
+  svg.innerHTML=g;
+
+  svg.querySelectorAll(".bar-bg").forEach(rect=>{
+    rect.addEventListener("mouseenter",e=>{
+      rect.setAttribute("fill",sc.getPropertyValue("--grid").trim());
+      const i=parseInt(rect.getAttribute("data-idx"));
+      const ch=CHANNELS[i];
+      const pct=((ch.rev/totalRev)*100).toFixed(1);
+      showTooltip(e,`<div class="tt-header">${ch.name}</div>
+        <div class="tt-row"><span class="tt-name">Revenue</span><span class="tt-val">$${(ch.rev/1000).toFixed(0)}K</span></div>
+        <div class="tt-row"><span class="tt-name">Users</span><span class="tt-val">${ch.users.toLocaleString()}</span></div>
+        <div class="tt-row"><span class="tt-name">CVR</span><span class="tt-val">${ch.cvr}%</span></div>
+        <div class="tt-row"><span class="tt-name">Share</span><span class="tt-val">${pct}%</span></div>`);
+    });
+    rect.addEventListener("mouseleave",()=>{rect.setAttribute("fill","transparent");hideTooltip();});
+    rect.addEventListener("mousemove",moveTooltip,{passive:true});
+  });
+}
+
+// ── Table ──────────────────────────────────────────────────────────
+function drawTable(){
+  const tbody=document.getElementById("channel-table");
+  tbody.innerHTML=CHANNELS.map(ch=>{
+    const pct=((ch.rev/totalRev)*100).toFixed(1);
+    const trendHtml=ch.trend>=0
+      ?`<span class="td-good">▲ ${ch.trend}%</span>`
+      :`<span class="td-bad">▼ ${Math.abs(ch.trend)}%</span>`;
+    const barW=Math.round(ch.cvr/6*80);
+    return`<tr>
+      <td>${ch.name}</td>
+      <td>$${(ch.rev/1000).toFixed(0)}K</td>
+      <td>${ch.users.toLocaleString()}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">${ch.cvr}%<div class="td-bar"><div class="td-bar-inner" style="width:${barW}px;background:${ch.color}"></div></div></div></td>
+      <td>$${ch.aov}</td>
+      <td>${trendHtml}</td>
+      <td>${pct}%</td>
+    </tr>`;
+  }).join("");
+}
+
+// ── Range filter ───────────────────────────────────────────────────
+function setRange(n,btn){
+  range=n;
+  document.querySelectorAll(".range-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  updateKPIs();
+  drawAllSparklines();
+  drawLineChart();
+}
+
+function updateKPIs(){
+  const s=getSlice(revData90,Math.min(range,90));
+  const total=s.reduce((a,b)=>a+b,0);
+  const fmtM=v=>v>=1e6?`$${(v/1e6).toFixed(2)}M`:v>=1e3?`$${(v/1e3).toFixed(1)}K`:`$${Math.round(v)}`;
+  document.getElementById("kpi-rev").textContent=fmtM(total);
+}
+
+// ── Theme toggle ───────────────────────────────────────────────────
+function toggleTheme(){
+  const root=document.getElementById("root");
+  const isDark=root.getAttribute("data-theme")==="dark";
+  root.setAttribute("data-theme",isDark?"light":"dark");
+  setTimeout(()=>{drawAllSparklines();drawLineChart();drawBarChart();},50);
+}
+
+// ── ResizeObserver for reflow ──────────────────────────────────────
+function renderAll(){
+  drawAllSparklines();
+  drawLineChart();
+  drawBarChart();
+  drawTable();
+}
+
+const ro=new ResizeObserver(()=>{drawLineChart();drawBarChart();drawAllSparklines();});
+ro.observe(document.getElementById("line-wrap"));
+ro.observe(document.getElementById("bar-wrap"));
+
+renderAll();
+</script>
+
+</body>
+</html>
