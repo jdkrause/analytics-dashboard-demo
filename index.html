@@ -45,8 +45,9 @@
     .dash-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
     .dash-title{font-size:17px;font-weight:600;color:var(--text-primary);letter-spacing:-0.01em}
     .dash-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
-    .theme-btn{background:var(--surface-1);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text-secondary);cursor:pointer;transition:background 0.15s}
+    .theme-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:var(--surface-1);border:1px solid var(--border);border-radius:50%;padding:0;color:var(--text-secondary);cursor:pointer;transition:background 0.15s}
     .theme-btn:hover{background:var(--grid)}
+    .theme-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
     /* Filter bar */
     .filter-bar{display:flex;gap:6px;margin-bottom:20px;align-items:center}
@@ -118,7 +119,7 @@
       <div class="dash-title">Analytics Overview</div>
       <div class="dash-sub">Updated Sep 8, 2026 · All metrics</div>
     </div>
-    <button class="theme-btn" onclick="toggleTheme()">Toggle dark mode</button>
+    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()" aria-label="Toggle dark mode"></button>
   </div>
 
   <!-- Filter bar -->
@@ -464,15 +465,28 @@ function updateKPIs(){
 }
 
 // ── Theme toggle ───────────────────────────────────────────────────
+const SUN_ICON=`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+const MOON_ICON=`<svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+
+function isDarkActive(){
+  const attr=document.getElementById("root").getAttribute("data-theme");
+  if(attr==="dark")return true;
+  if(attr==="light")return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function updateThemeIcon(){
+  document.getElementById("theme-btn").innerHTML=isDarkActive()?SUN_ICON:MOON_ICON;
+}
 function toggleTheme(){
   const root=document.getElementById("root");
-  const isDark=root.getAttribute("data-theme")==="dark";
-  root.setAttribute("data-theme",isDark?"light":"dark");
+  root.setAttribute("data-theme",isDarkActive()?"light":"dark");
+  updateThemeIcon();
   setTimeout(()=>{drawAllSparklines();drawLineChart();drawBarChart();},50);
 }
 
 // ── ResizeObserver for reflow ──────────────────────────────────────
 function renderAll(){
+  updateThemeIcon();
   drawAllSparklines();
   drawLineChart();
   drawBarChart();
